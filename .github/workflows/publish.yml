@@ -1,0 +1,57 @@
+name: publish
+
+# Tag no formato <pacote>-v<versão>, ex: asaas-v1.0.0, db-migrate-v1.2.0
+on:
+  push:
+    tags:
+      - "*-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@kyvvohq"
+
+      - name: Resolver pacote e versão da tag
+        id: alvo
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          PKG="${TAG%-v*}"
+          VER="${TAG##*-v}"
+          DIR="packages/$PKG"
+          if [ ! -d "$DIR" ]; then
+            echo "::error::tag '$TAG' aponta pra pacote inexistente ($DIR)"
+            exit 1
+          fi
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "Tag $TAG -> $DIR @ $VER"
+
+      - name: Conferir version == tag
+        working-directory: ${{ steps.alvo.outputs.dir }}
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          if [ "$PKG_VER" != "${{ steps.alvo.outputs.ver }}" ]; then
+            echo "::error::package.json version ($PKG_VER) diferente da tag (${{ steps.alvo.outputs.ver }})"
+            exit 1
+          fi
+
+      - name: Testes
+        working-directory: ${{ steps.alvo.outputs.dir }}
+        run: npm test
+
+      - name: Publicar
+        working-directory: ${{ steps.alvo.outputs.dir }}
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
