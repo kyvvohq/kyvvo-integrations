@@ -8,6 +8,10 @@ updates:
     directory: /packages/db-migrate
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /packages/platform-client
+    schedule:
+      interval: weekly
   - package-ecosystem: github-actions
     directory: /
     schedule:

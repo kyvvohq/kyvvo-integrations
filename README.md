@@ -8,6 +8,7 @@ Clientes de integração compartilhados entre os produtos Kyvvo. Cada pasta em
 |---|---|
 | [`@kyvvohq/asaas`](packages/asaas) | Cliente Asaas (cobrança recorrente). Superset das cópias de `kyvvo/server/panel/asaas-service.js` e `kyvvo-people/lib/asaas.js`. |
 | [`@kyvvohq/db-migrate`](packages/db-migrate) | Runner de migrations SQL simples, extraído de `kyvvo-people/lib/db.js`. |
+| [`@kyvvohq/platform-client`](packages/platform-client) | SDK do serviço [`kyvvo-platform`](https://github.com/kyvvohq/kyvvo-platform): verificação local de JWT (RS256 via JWKS), entitlements e billing. |
 
 ## Publicar
 
@@ -37,5 +38,6 @@ O workflow `publish` resolve o pacote pelo prefixo da tag, confere
 
 ## Testes
 
-Cada pacote: `cd packages/<nome> && npm test` (node:test, sem dependências
-externas — não precisa de `npm install` nem de Postgres).
+Cada pacote: `cd packages/<nome> && npm test` (node:test, sem Postgres).
+`asaas` e `db-migrate` não têm dependência externa; `platform-client` precisa
+de `npm install` (usa `jsonwebtoken`).
