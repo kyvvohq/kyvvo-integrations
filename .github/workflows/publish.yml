@@ -46,6 +46,10 @@ jobs:
             exit 1
           fi
 
+      - name: Instalar deps do pacote
+        working-directory: ${{ steps.alvo.outputs.dir }}
+        run: npm install --no-audit --no-fund --no-package-lock
+
       - name: Testes
         working-directory: ${{ steps.alvo.outputs.dir }}
         run: npm test
