@@ -53,6 +53,53 @@ test('enviarTemplate: sem templateName aborta mesmo com credencial', async () =>
   });
 });
 
+test('enviarTemplate: phoneNumberId por argumento vale sem META_PHONE_NUMBER_ID no env', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    let urlChamada = null;
+    const original = global.fetch;
+    global.fetch = async (url) => { urlChamada = String(url); return { ok: true, status: 200, json: async () => ({}) }; };
+    try {
+      const ok = await whatsapp.enviarTemplate({ to: '+5511999999999', templateName: 'x', phoneNumberId: 'tenant-123' });
+      assert.equal(ok, true);
+      assert.ok(urlChamada.includes('/tenant-123/messages'), urlChamada);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarTemplate: sem phoneNumberId (arg nem env) cai em modo dev', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    const original = global.fetch;
+    global.fetch = () => { throw new Error('não devia chamar fetch'); };
+    try {
+      assert.equal(await whatsapp.enviarTemplate({ to: '+5511999999999', templateName: 'x' }), false);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('listarTemplates: wabaId por argumento vale sem META_WABA_ID no env', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    let urlChamada = null;
+    const original = global.fetch;
+    global.fetch = async (url) => { urlChamada = String(url); return { ok: true, status: 200, json: async () => ({ data: [] }) }; };
+    try {
+      await whatsapp.listarTemplates({ wabaId: 'waba-do-tenant' });
+      assert.ok(urlChamada.includes('/waba-do-tenant/message_templates'), urlChamada);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('listarTemplates: sem wabaId (arg nem env) devolve lista vazia', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    assert.deepEqual(await whatsapp.listarTemplates(), []);
+  });
+});
+
 test('listarTemplates: sem credencial devolve lista vazia, não toca a rede', async () => {
   await comEnv({}, async (whatsapp) => {
     assert.deepEqual(await whatsapp.listarTemplates(), []);

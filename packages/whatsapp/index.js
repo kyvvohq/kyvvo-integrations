@@ -2,8 +2,14 @@
 // Extraído de kyvvo-people/lib/whatsapp.js (2026-09-09) — primeiro produto a
 // usar foi o People (notificações de candidatura), mas nada aqui é
 // específico dele; cada produto lê suas próprias env vars (mesmo container,
-// nomes iguais aos de antes) e passa o que for específico (ex.: `prefixo`
-// em listarTemplates) como argumento.
+// nomes iguais aos de antes) e passa o que for específico como argumento.
+//
+// Modelos de número/WABA (2026-09-10): o People tem UM número/WABA
+// (`META_PHONE_NUMBER_ID`/`META_WABA_ID` no env). O Studio tem UM POR TENANT
+// (`tenants.meta_phone_number_id`/`meta_waba_id`), com o mesmo token de
+// System User — por isso `enviarTemplate` aceita `phoneNumberId` e
+// `listarTemplates` aceita `wabaId` por chamada, caindo no env quando o arg
+// não vem. O token (`META_WHATSAPP_TOKEN`) é sempre do env.
 //
 // Mensagem proativa (o destinatário nunca escreveu antes pro número) só é
 // aceita pela Meta via `template` (nome aprovado previamente no Meta
@@ -33,15 +39,16 @@
 // pra enviarTemplate — este módulo só transporta o que foi decidido.
 const GRAPH_API_VERSION = 'v22.0';
 
-// Sem META_WHATSAPP_TOKEN/META_PHONE_NUMBER_ID configurados, cai em modo de
-// log (mesmo padrão dev-mode do @kyvvohq/asaas) — útil em dev/homologação
-// sem depender do provedor externo, e também é o estado seguro até as
-// credenciais existirem em produção.
-async function enviarTemplate({ to, templateName, parametrosCorpo = [], parametroBotao, idioma = 'pt_BR' }) {
+// `phoneNumberId` opcional: quem manda o argumento (Studio — um número Meta
+// por tenant, token de System User compartilhado) sobrepõe o env; quem não
+// manda (People — um número só) cai em `META_PHONE_NUMBER_ID`. Sem token nem
+// número (arg ou env), cai em modo de log (mesmo padrão dev-mode do
+// @kyvvohq/asaas) — seguro em dev/homologação e até as credenciais existirem.
+async function enviarTemplate({ to, templateName, parametrosCorpo = [], parametroBotao, idioma = 'pt_BR', phoneNumberId }) {
   const token = process.env.META_WHATSAPP_TOKEN;
-  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+  const numeroId = phoneNumberId || process.env.META_PHONE_NUMBER_ID;
 
-  if (!token || !phoneNumberId) {
+  if (!token || !numeroId) {
     console.log(`[whatsapp] (dev) template "${templateName}" para ${to}: corpo=${JSON.stringify(parametrosCorpo)} botao=${parametroBotao || '-'}`);
     return false;
   }
@@ -64,7 +71,7 @@ async function enviarTemplate({ to, templateName, parametrosCorpo = [], parametr
   }
 
   try {
-    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${numeroId}/messages`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -90,20 +97,21 @@ async function enviarTemplate({ to, templateName, parametrosCorpo = [], parametr
   }
 }
 
-// Lista os templates cadastrados na WABA (`META_WABA_ID`) — usado pra virar
-// um <select> em vez de digitar o nome na mão, E pra saber os nomes exatos
-// dos parâmetros do corpo/a base do botão na hora de montar o envio de
-// verdade. `prefixo`, se passado, filtra por nome — várias WABAs são
-// compartilhadas entre produtos Kyvvo (ex.: Studio e People na mesma), sem
-// filtrar a lista de um produto traria templates dos outros. Sem
+// Lista os templates cadastrados numa WABA — usado pra virar um <select> em
+// vez de digitar o nome na mão, E pra saber os nomes exatos dos parâmetros do
+// corpo/a base do botão na hora de montar o envio de verdade. `wabaId`
+// opcional: Studio passa o `meta_waba_id` do tenant (uma WABA por tenant),
+// People/os demais caem no env `META_WABA_ID`. `prefixo`, se passado, filtra
+// por nome — quando a WABA é compartilhada entre produtos (ex.: People e o
+// pool do Studio), sem o filtro a lista de um produto traz os do outro. Sem
 // credencial, devolve lista vazia.
-async function listarTemplates({ prefixo } = {}) {
+async function listarTemplates({ prefixo, wabaId } = {}) {
   const token = process.env.META_WHATSAPP_TOKEN;
-  const wabaId = process.env.META_WABA_ID;
-  if (!token || !wabaId) return [];
+  const waba = wabaId || process.env.META_WABA_ID;
+  if (!token || !waba) return [];
 
   try {
-    const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`);
+    const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${waba}/message_templates`);
     url.searchParams.set('fields', 'name,status,language,components');
     url.searchParams.set('limit', '100');
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) });
