@@ -51,26 +51,29 @@ async function checarCotaDisparo(pool, { tenantId, limiteDisparos, quantidade })
   return { ok: usadoMesAtual + quantidade <= limiteDisparos, restante, limite: limiteDisparos, usadoMesAtual };
 }
 
-async function registrarDisparo(pool, { tenantId, telefoneE164, templateNome, gatilho, status }) {
+async function registrarDisparo(pool, { tenantId, telefoneE164, templateNome, gatilho, status, mensagemTexto }) {
   await pool.query(
-    `insert into whatsapp_disparos (id, tenant_id, telefone_e164, template_nome, gatilho, status)
-     values ($1, $2, $3, $4, $5, $6)`,
-    [crypto.randomUUID(), tenantId, telefoneE164, templateNome || null, gatilho || null, status]
+    `insert into whatsapp_disparos (id, tenant_id, telefone_e164, template_nome, gatilho, status, mensagem_texto)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [crypto.randomUUID(), tenantId, telefoneE164, templateNome || null, gatilho || null, status, mensagemTexto || null]
   );
 }
 
 // Envia `templateNome` pra cada destinatário e registra o desfecho em
 // `whatsapp_disparos`. Best-effort por destinatário — a falha de um não
 // impede os demais. `destinatarios`: [{ telefoneE164, optOut, parametrosCorpo,
-// parametroBotao }] (parametrosCorpo/parametroBotao no formato que
-// @kyvvohq/whatsapp espera, já resolvidos por quem chama).
+// parametroBotao, mensagemTexto }] (parametrosCorpo/parametroBotao no formato
+// que @kyvvohq/whatsapp espera, já resolvidos por quem chama; mensagemTexto é
+// o texto final do template com os parâmetros já substituídos — pra exibir
+// na tela de Disparos, já que a Meta só recebe os parâmetros separados,
+// nunca o texto montado. Quem chama monta isso, o pacote só persiste).
 async function dispararEmLote(pool, { tenantId, destinatarios, templateNome, phoneNumberId, gatilho = 'manual' }) {
   let enviados = 0;
   let falhas = 0;
   const detalhes = [];
   for (const d of destinatarios) {
     if (d.optOut) {
-      await registrarDisparo(pool, { tenantId, telefoneE164: d.telefoneE164, templateNome, gatilho, status: 'bloqueado_optout' });
+      await registrarDisparo(pool, { tenantId, telefoneE164: d.telefoneE164, templateNome, gatilho, status: 'bloqueado_optout', mensagemTexto: d.mensagemTexto });
       falhas++;
       detalhes.push({ telefoneE164: d.telefoneE164, status: 'bloqueado_optout' });
       continue;
@@ -79,7 +82,7 @@ async function dispararEmLote(pool, { tenantId, destinatarios, templateNome, pho
       to: d.telefoneE164, templateName: templateNome, parametrosCorpo: d.parametrosCorpo, parametroBotao: d.parametroBotao, phoneNumberId,
     });
     const status = ok ? 'enviado' : 'erro';
-    await registrarDisparo(pool, { tenantId, telefoneE164: d.telefoneE164, templateNome, gatilho, status });
+    await registrarDisparo(pool, { tenantId, telefoneE164: d.telefoneE164, templateNome, gatilho, status, mensagemTexto: d.mensagemTexto });
     if (ok) enviados++; else falhas++;
     detalhes.push({ telefoneE164: d.telefoneE164, status });
   }

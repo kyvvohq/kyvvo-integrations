@@ -62,7 +62,7 @@ test('dispararEmLote: opt-out pula o envio (não chama a Graph API) e conta como
   try {
     const r = await dispararEmLote(pool, {
       tenantId: 't1',
-      destinatarios: [{ telefoneE164: '+5511999999999', optOut: true }],
+      destinatarios: [{ telefoneE164: '+5511999999999', optOut: true, mensagemTexto: 'Oi Ana!' }],
       templateNome: 'promo_1',
       phoneNumberId: 'num-1',
     });
@@ -72,6 +72,7 @@ test('dispararEmLote: opt-out pula o envio (não chama a Graph API) e conta como
     const insercoes = pool.chamadas.filter((c) => c.sql.includes('insert into whatsapp_disparos'));
     assert.equal(insercoes.length, 1);
     assert.equal(insercoes[0].params[5], 'bloqueado_optout');
+    assert.equal(insercoes[0].params[6], 'Oi Ana!');
   } finally {
     process.env = envAntes;
   }
@@ -86,8 +87,8 @@ test('dispararEmLote: 1 sucesso + 1 falha da Graph API — contadores e status g
       const r = await dispararEmLote(pool, {
         tenantId: 't1',
         destinatarios: [
-          { telefoneE164: '+5511111111111', parametrosCorpo: [{ nome: 'cliente', valor: 'Ana', nomeado: true }] },
-          { telefoneE164: '+5511222222222', parametrosCorpo: [{ nome: 'cliente', valor: 'Bia', nomeado: true }] },
+          { telefoneE164: '+5511111111111', parametrosCorpo: [{ nome: 'cliente', valor: 'Ana', nomeado: true }], mensagemTexto: 'Oi Ana!' },
+          { telefoneE164: '+5511222222222', parametrosCorpo: [{ nome: 'cliente', valor: 'Bia', nomeado: true }], mensagemTexto: 'Oi Bia!' },
         ],
         templateNome: 'promo_1',
         phoneNumberId: 'num-1',
@@ -103,7 +104,9 @@ test('dispararEmLote: 1 sucesso + 1 falha da Graph API — contadores e status g
       assert.equal(insercoes.length, 2);
       assert.equal(insercoes[0].params[4], 'manual');
       assert.equal(insercoes[0].params[5], 'enviado');
+      assert.equal(insercoes[0].params[6], 'Oi Ana!');
       assert.equal(insercoes[1].params[5], 'erro');
+      assert.equal(insercoes[1].params[6], 'Oi Bia!');
     });
   } finally {
     process.env = envAntes;
