@@ -39,10 +39,15 @@ consulta o banco).
 
 ### `dispararEmLote(pool, { tenantId, destinatarios, templateNome, phoneNumberId, gatilho })`
 
-`destinatarios`: `[{ telefoneE164, optOut, parametrosCorpo, parametroBotao }]`
+`destinatarios`: `[{ telefoneE164, optOut, parametrosCorpo, parametroBotao, mensagemTexto }]`
 — `parametrosCorpo`/`parametroBotao` no formato que `@kyvvohq/whatsapp`
-espera, já resolvidos por quem chama. `gatilho` (default `'manual'`) só
-identifica a origem na linha gravada em `whatsapp_disparos`.
+espera, já resolvidos por quem chama. `mensagemTexto` (desde v1.1.0) é o
+texto final do template com os parâmetros já substituídos — a Meta só
+recebe os parâmetros separados, nunca o texto montado, então isso precisa
+ser reconstruído por quem chama (corpo do template + parâmetros) antes de
+passar pra cá; o pacote só persiste o que recebe, pra exibir na tela de
+Disparos. `gatilho` (default `'manual'`) só identifica a origem na linha
+gravada em `whatsapp_disparos`.
 
 Por destinatário: `optOut` → grava `bloqueado_optout` e pula (nunca chama a
 Graph API); senão chama `enviarTemplate` e grava `enviado`/`erro`. Best-effort
@@ -64,8 +69,11 @@ Idêntico em Studio e People:
 ```sql
 id uuid, tenant_id uuid, telefone_e164 text, template_nome text, gatilho text,
 status text check in ('enviado','erro','bloqueado_optout','bloqueado_24h','bloqueado_limite_plano'),
-criado_em timestamptz
+criado_em timestamptz, mensagem_texto text
 ```
+
+`mensagem_texto` (desde v1.1.0) é opcional/nullable — linhas gravadas antes
+dessa versão ficam `null`.
 
 Um produto que ainda não tem essa tabela (ex.: CRM, em 2026-09-23) precisa
 criá-la antes de adotar este pacote — ver as migrations do Studio

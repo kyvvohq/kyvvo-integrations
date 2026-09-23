@@ -1,6 +1,6 @@
 {
   "name": "@kyvvohq/disparos",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cota + disparo manual em lote de WhatsApp (schema whatsapp_disparos), compartilhado pelos produtos Kyvvo.",
   "license": "UNLICENSED",
   "main": "index.js",
