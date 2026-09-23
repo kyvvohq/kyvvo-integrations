@@ -49,6 +49,13 @@ jobs:
       - name: Instalar deps do pacote
         working-directory: ${{ steps.alvo.outputs.dir }}
         run: npm install --no-audit --no-fund --no-package-lock
+        env:
+          # GITHUB_TOKEN não lê pacotes do GitHub Packages (nem os deste
+          # mesmo repo) — achado ao publicar o @kyvvohq/disparos, primeiro
+          # pacote daqui a depender de outro @kyvvohq/* (2026-09-23). Mesmo
+          # PAT (`read:packages`) que Studio/People/admin já usam pra
+          # consumir estes pacotes.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGES_TOKEN }}
 
       - name: Testes
         working-directory: ${{ steps.alvo.outputs.dir }}
