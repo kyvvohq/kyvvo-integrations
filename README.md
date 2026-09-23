@@ -9,6 +9,8 @@ Clientes de integração compartilhados entre os produtos Kyvvo. Cada pasta em
 | [`@kyvvohq/asaas`](packages/asaas) | Cliente Asaas (cobrança recorrente). Superset das cópias de `kyvvo/server/panel/asaas-service.js` e `kyvvo-people/lib/asaas.js`. |
 | [`@kyvvohq/db-migrate`](packages/db-migrate) | Runner de migrations SQL simples, extraído de `kyvvo-people/lib/db.js`. |
 | [`@kyvvohq/platform-client`](packages/platform-client) | SDK do serviço [`kyvvo-platform`](https://github.com/kyvvohq/kyvvo-platform): verificação local de JWT (RS256 via JWKS), entitlements e billing. |
+| [`@kyvvohq/whatsapp`](packages/whatsapp) | Cliente WhatsApp Cloud API (Meta): enviar template aprovado, listar templates de uma WABA. |
+| [`@kyvvohq/disparos`](packages/disparos) | Cota + disparo manual em lote de WhatsApp (schema `whatsapp_disparos`), construído sobre `@kyvvohq/whatsapp`. |
 
 ## Publicar
 

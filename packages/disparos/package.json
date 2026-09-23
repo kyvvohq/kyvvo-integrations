@@ -1,0 +1,27 @@
+{
+  "name": "@kyvvohq/disparos",
+  "version": "1.0.0",
+  "description": "Cota + disparo manual em lote de WhatsApp (schema whatsapp_disparos), compartilhado pelos produtos Kyvvo.",
+  "license": "UNLICENSED",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyvvohq/kyvvo-integrations.git",
+    "directory": "packages/disparos"
+  },
+  "files": [
+    "index.js"
+  ],
+  "dependencies": {
+    "@kyvvohq/whatsapp": "^1.1.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
