@@ -123,6 +123,58 @@ test('enviarTexto: resposta de erro da Meta devolve false, não lança', async (
   });
 });
 
+test('enviarBotoes: modo dev sem credencial, não toca a rede', async () => {
+  await comEnv({}, async (whatsapp) => {
+    const original = global.fetch;
+    global.fetch = () => { throw new Error('não devia chamar fetch em modo dev'); };
+    try {
+      const ok = await whatsapp.enviarBotoes({ to: '+5511999999999', texto: 'oi', botoes: [{ id: 'a', titulo: 'A' }] });
+      assert.equal(ok, false);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarBotoes: sem botões aborta mesmo com credencial', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_PHONE_NUMBER_ID: 'p' }, async (whatsapp) => {
+    const ok = await whatsapp.enviarBotoes({ to: '+5511999999999', texto: 'oi', botoes: [] });
+    assert.equal(ok, false);
+  });
+});
+
+test('enviarBotoes: monta o payload interactive/button com id+title de cada botão', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    let corpoChamado = null;
+    const original = global.fetch;
+    global.fetch = async (url, opts) => { corpoChamado = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({}) }; };
+    try {
+      const ok = await whatsapp.enviarBotoes({
+        to: '+5511999999999', texto: 'Escolha uma opção', phoneNumberId: 'tenant-123',
+        botoes: [{ id: 'fazer_pedido', titulo: 'Fazer pedido' }, { id: 'ver_lojas', titulo: 'Ver lojas' }],
+      });
+      assert.equal(ok, true);
+      assert.equal(corpoChamado.type, 'interactive');
+      assert.equal(corpoChamado.interactive.type, 'button');
+      assert.equal(corpoChamado.interactive.body.text, 'Escolha uma opção');
+      assert.deepEqual(corpoChamado.interactive.action.buttons, [
+        { type: 'reply', reply: { id: 'fazer_pedido', title: 'Fazer pedido' } },
+        { type: 'reply', reply: { id: 'ver_lojas', title: 'Ver lojas' } },
+      ]);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarBotoes: resposta de erro da Meta devolve false, não lança', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_PHONE_NUMBER_ID: 'p' }, async (whatsapp) => {
+    await comFetchMock([{ ok: false, status: 401, body: { error: { message: 'token inválido' } } }], async () => {
+      assert.equal(await whatsapp.enviarBotoes({ to: '+5511999999999', texto: 'oi', botoes: [{ id: 'a', titulo: 'A' }] }), false);
+    });
+  });
+});
+
 test('listarTemplates: wabaId por argumento vale sem META_WABA_ID no env', async () => {
   await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
     let urlChamada = null;

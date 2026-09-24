@@ -11,6 +11,7 @@ const whatsapp = require('@kyvvohq/whatsapp');
 
 await whatsapp.enviarTemplate({ to, templateName, parametrosCorpo, parametroBotao, idioma });
 await whatsapp.enviarTexto({ to, texto, phoneNumberId });
+await whatsapp.enviarBotoes({ to, texto, botoes, phoneNumberId });
 await whatsapp.listarTemplates({ prefixo });
 ```
 
@@ -39,6 +40,14 @@ Texto livre — só aceito pela Meta dentro da janela de 24h de uma conversa que
 o destinatário iniciou (diferente de `enviarTemplate`, que é pra mensagem
 proativa). `phoneNumberId` opcional, mesmo fallback pra `META_PHONE_NUMBER_ID`
 e mesmo modo dev de `enviarTemplate`.
+
+### `enviarBotoes({ to, texto, botoes, phoneNumberId })`
+
+Mensagem interativa com até 3 botões de resposta rápida (`interactive/button`
+da Meta). `botoes`: `[{ id, titulo }]` — `titulo` até 20 caracteres (limite
+da Meta), `id` é o que volta em `interactive.button_reply.id` na próxima
+mensagem do cliente, não precisa ser o texto exibido. Mesma janela de
+24h/fallback/modo dev de `enviarTexto`.
 
 ### `listarTemplates({ prefixo })`
 
