@@ -97,6 +97,48 @@ async function enviarTemplate({ to, templateName, parametrosCorpo = [], parametr
   }
 }
 
+// Texto livre — só é aceito pela Meta dentro da janela de 24h de uma
+// conversa que o destinatário iniciou (diferente de enviarTemplate, que é
+// pra mensagem proativa). Primeiro uso: bot conversacional do CRM
+// (kyvvo-crm), respondendo a uma mensagem que acabou de chegar — está
+// sempre dentro da janela porque é sempre uma resposta. Mesmo `phoneNumberId`
+// opcional/modo dev de enviarTemplate.
+async function enviarTexto({ to, texto, phoneNumberId }) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const numeroId = phoneNumberId || process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !numeroId) {
+    console.log(`[whatsapp] (dev) texto para ${to}: ${texto}`);
+    return false;
+  }
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${numeroId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { body: texto },
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      const erro = await res.json().catch(() => ({}));
+      console.error(`[whatsapp] Meta respondeu ${res.status} ao enviar texto pra ${to}: ${(erro.error && erro.error.message) || ''}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[whatsapp] Falha ao enviar texto pra ${to}: ${err.message}`);
+    return false;
+  }
+}
+
 // Lista os templates cadastrados numa WABA — usado pra virar um <select> em
 // vez de digitar o nome na mão, E pra saber os nomes exatos dos parâmetros do
 // corpo/a base do botão na hora de montar o envio de verdade. `wabaId`
@@ -150,4 +192,4 @@ async function listarTemplates({ prefixo, wabaId } = {}) {
   }
 }
 
-module.exports = { enviarTemplate, listarTemplates };
+module.exports = { enviarTemplate, enviarTexto, listarTemplates };

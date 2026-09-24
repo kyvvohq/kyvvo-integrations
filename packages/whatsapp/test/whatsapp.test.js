@@ -80,6 +80,49 @@ test('enviarTemplate: sem phoneNumberId (arg nem env) cai em modo dev', async ()
   });
 });
 
+test('enviarTexto: modo dev sem credencial, não toca a rede', async () => {
+  await comEnv({}, async (whatsapp) => {
+    const original = global.fetch;
+    global.fetch = () => { throw new Error('não devia chamar fetch em modo dev'); };
+    try {
+      const ok = await whatsapp.enviarTexto({ to: '+5511999999999', texto: 'oi' });
+      assert.equal(ok, false);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarTexto: phoneNumberId por argumento vale sem META_PHONE_NUMBER_ID no env', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    let urlChamada = null;
+    let corpoChamado = null;
+    const original = global.fetch;
+    global.fetch = async (url, opts) => {
+      urlChamada = String(url);
+      corpoChamado = JSON.parse(opts.body);
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    try {
+      const ok = await whatsapp.enviarTexto({ to: '+5511999999999', texto: 'oi', phoneNumberId: 'tenant-123' });
+      assert.equal(ok, true);
+      assert.ok(urlChamada.includes('/tenant-123/messages'), urlChamada);
+      assert.deepEqual(corpoChamado.text, { body: 'oi' });
+      assert.equal(corpoChamado.type, 'text');
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarTexto: resposta de erro da Meta devolve false, não lança', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_PHONE_NUMBER_ID: 'p' }, async (whatsapp) => {
+    await comFetchMock([{ ok: false, status: 401, body: { error: { message: 'token inválido' } } }], async () => {
+      assert.equal(await whatsapp.enviarTexto({ to: '+5511999999999', texto: 'oi' }), false);
+    });
+  });
+});
+
 test('listarTemplates: wabaId por argumento vale sem META_WABA_ID no env', async () => {
   await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
     let urlChamada = null;
