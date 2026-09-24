@@ -139,6 +139,56 @@ async function enviarTexto({ to, texto, phoneNumberId }) {
   }
 }
 
+// Mensagem interativa com até 3 botões de resposta rápida (WhatsApp
+// "interactive/button") — usado pelo bot do CRM pra fluxo guiado por toque
+// em vez de "responda com o número X". `botoes`: [{ id, titulo }], `titulo`
+// até 20 caracteres (limite da Meta) e `id` é o que volta no
+// `interactive.button_reply.id` da mensagem seguinte, não o texto exibido.
+// Mesma janela de 24h/contrato de phoneNumberId/modo dev de enviarTexto.
+async function enviarBotoes({ to, texto, botoes = [], phoneNumberId }) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const numeroId = phoneNumberId || process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !numeroId) {
+    console.log(`[whatsapp] (dev) botões para ${to}: ${texto} | opções: ${botoes.map((b) => b.titulo).join(', ')}`);
+    return false;
+  }
+  if (!botoes.length) {
+    console.error(`[whatsapp] enviarBotoes sem botões — envio pra ${to} abortado.`);
+    return false;
+  }
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${numeroId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'interactive',
+        interactive: {
+          type: 'button',
+          body: { text: texto },
+          action: { buttons: botoes.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.titulo } })) },
+        },
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      const erro = await res.json().catch(() => ({}));
+      console.error(`[whatsapp] Meta respondeu ${res.status} ao enviar botões pra ${to}: ${(erro.error && erro.error.message) || ''}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[whatsapp] Falha ao enviar botões pra ${to}: ${err.message}`);
+    return false;
+  }
+}
+
 // Lista os templates cadastrados numa WABA — usado pra virar um <select> em
 // vez de digitar o nome na mão, E pra saber os nomes exatos dos parâmetros do
 // corpo/a base do botão na hora de montar o envio de verdade. `wabaId`
@@ -192,4 +242,4 @@ async function listarTemplates({ prefixo, wabaId } = {}) {
   }
 }
 
-module.exports = { enviarTemplate, enviarTexto, listarTemplates };
+module.exports = { enviarTemplate, enviarTexto, enviarBotoes, listarTemplates };
