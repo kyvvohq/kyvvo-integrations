@@ -10,6 +10,7 @@ People, mas nada aqui é específico dele.
 const whatsapp = require('@kyvvohq/whatsapp');
 
 await whatsapp.enviarTemplate({ to, templateName, parametrosCorpo, parametroBotao, idioma });
+await whatsapp.enviarTexto({ to, texto, phoneNumberId });
 await whatsapp.listarTemplates({ prefixo });
 ```
 
@@ -31,6 +32,13 @@ via template aprovado — nunca texto livre.
   fixo, outros são só a raiz do domínio) — comparar o caminho alvo com
   `botao_url_prefixo` (de `listarTemplates`) pra saber o valor certo é
   responsabilidade de quem chama, não deste módulo.
+
+### `enviarTexto({ to, texto, phoneNumberId })`
+
+Texto livre — só aceito pela Meta dentro da janela de 24h de uma conversa que
+o destinatário iniciou (diferente de `enviarTemplate`, que é pra mensagem
+proativa). `phoneNumberId` opcional, mesmo fallback pra `META_PHONE_NUMBER_ID`
+e mesmo modo dev de `enviarTemplate`.
 
 ### `listarTemplates({ prefixo })`
 
