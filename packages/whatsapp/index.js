@@ -189,6 +189,60 @@ async function enviarBotoes({ to, texto, botoes = [], phoneNumberId }) {
   }
 }
 
+// Mensagem interativa com lista de opções (WhatsApp "interactive/list") —
+// pra quando há mais opções do que cabem em botões (máx. 3 em enviarBotoes;
+// lista aceita até 10). `opcoes`: [{ id, titulo, descricao? }], `titulo` até
+// 24 caracteres e `descricao` até 72 (limites da Meta). `tituloBotao` é o
+// rótulo do botão que abre a lista (até 20 caracteres). `id` volta em
+// `interactive.list_reply.id` na próxima mensagem do cliente. Mesma janela
+// de 24h/fallback/modo dev de enviarTexto.
+async function enviarLista({ to, texto, tituloBotao, opcoes = [], phoneNumberId }) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const numeroId = phoneNumberId || process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !numeroId) {
+    console.log(`[whatsapp] (dev) lista para ${to}: ${texto} | opções: ${opcoes.map((o) => o.titulo).join(', ')}`);
+    return false;
+  }
+  if (!opcoes.length) {
+    console.error(`[whatsapp] enviarLista sem opções — envio pra ${to} abortado.`);
+    return false;
+  }
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${numeroId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'interactive',
+        interactive: {
+          type: 'list',
+          body: { text: texto },
+          action: {
+            button: tituloBotao,
+            sections: [{ rows: opcoes.map((o) => ({ id: o.id, title: o.titulo, description: o.descricao })) }],
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      const erro = await res.json().catch(() => ({}));
+      console.error(`[whatsapp] Meta respondeu ${res.status} ao enviar lista pra ${to}: ${(erro.error && erro.error.message) || ''}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[whatsapp] Falha ao enviar lista pra ${to}: ${err.message}`);
+    return false;
+  }
+}
+
 // Lista os templates cadastrados numa WABA — usado pra virar um <select> em
 // vez de digitar o nome na mão, E pra saber os nomes exatos dos parâmetros do
 // corpo/a base do botão na hora de montar o envio de verdade. `wabaId`
@@ -242,4 +296,4 @@ async function listarTemplates({ prefixo, wabaId } = {}) {
   }
 }
 
-module.exports = { enviarTemplate, enviarTexto, enviarBotoes, listarTemplates };
+module.exports = { enviarTemplate, enviarTexto, enviarBotoes, enviarLista, listarTemplates };
