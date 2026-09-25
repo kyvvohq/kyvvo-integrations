@@ -12,6 +12,7 @@ const whatsapp = require('@kyvvohq/whatsapp');
 await whatsapp.enviarTemplate({ to, templateName, parametrosCorpo, parametroBotao, idioma });
 await whatsapp.enviarTexto({ to, texto, phoneNumberId });
 await whatsapp.enviarBotoes({ to, texto, botoes, phoneNumberId });
+await whatsapp.enviarLista({ to, texto, tituloBotao, opcoes, phoneNumberId });
 await whatsapp.listarTemplates({ prefixo });
 ```
 
@@ -48,6 +49,15 @@ da Meta). `botoes`: `[{ id, titulo }]` — `titulo` até 20 caracteres (limite
 da Meta), `id` é o que volta em `interactive.button_reply.id` na próxima
 mensagem do cliente, não precisa ser o texto exibido. Mesma janela de
 24h/fallback/modo dev de `enviarTexto`.
+
+### `enviarLista({ to, texto, tituloBotao, opcoes, phoneNumberId })`
+
+Mensagem interativa com lista de opções (`interactive/list` da Meta) — pra
+mais opções do que cabem em `enviarBotoes` (máx. 3; lista aceita até 10).
+`opcoes`: `[{ id, titulo, descricao? }]` — `titulo` até 24 caracteres,
+`descricao` até 72 (limites da Meta). `tituloBotao` é o rótulo do botão que
+abre a lista (até 20 caracteres). `id` volta em
+`interactive.list_reply.id` na próxima mensagem do cliente.
 
 ### `listarTemplates({ prefixo })`
 

@@ -175,6 +175,61 @@ test('enviarBotoes: resposta de erro da Meta devolve false, não lança', async 
   });
 });
 
+test('enviarLista: modo dev sem credencial, não toca a rede', async () => {
+  await comEnv({}, async (whatsapp) => {
+    const original = global.fetch;
+    global.fetch = () => { throw new Error('não devia chamar fetch em modo dev'); };
+    try {
+      const ok = await whatsapp.enviarLista({ to: '+5511999999999', texto: 'oi', tituloBotao: 'Escolher', opcoes: [{ id: 'a', titulo: 'A' }] });
+      assert.equal(ok, false);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarLista: sem opções aborta mesmo com credencial', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_PHONE_NUMBER_ID: 'p' }, async (whatsapp) => {
+    const ok = await whatsapp.enviarLista({ to: '+5511999999999', texto: 'oi', tituloBotao: 'Escolher', opcoes: [] });
+    assert.equal(ok, false);
+  });
+});
+
+test('enviarLista: monta o payload interactive/list com button + rows', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    let corpoChamado = null;
+    const original = global.fetch;
+    global.fetch = async (url, opts) => { corpoChamado = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({}) }; };
+    try {
+      const ok = await whatsapp.enviarLista({
+        to: '+5511999999999', texto: 'Qual é o tipo da peça?', tituloBotao: 'Escolher', phoneNumberId: 'tenant-123',
+        opcoes: [{ id: 'biscoito', titulo: 'Cortador de biscoito' }, { id: 'outro', titulo: 'Outro' }],
+      });
+      assert.equal(ok, true);
+      assert.equal(corpoChamado.type, 'interactive');
+      assert.equal(corpoChamado.interactive.type, 'list');
+      assert.equal(corpoChamado.interactive.body.text, 'Qual é o tipo da peça?');
+      assert.equal(corpoChamado.interactive.action.button, 'Escolher');
+      assert.deepEqual(corpoChamado.interactive.action.sections, [{
+        rows: [
+          { id: 'biscoito', title: 'Cortador de biscoito' },
+          { id: 'outro', title: 'Outro' },
+        ],
+      }]);
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('enviarLista: resposta de erro da Meta devolve false, não lança', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_PHONE_NUMBER_ID: 'p' }, async (whatsapp) => {
+    await comFetchMock([{ ok: false, status: 401, body: { error: { message: 'token inválido' } } }], async () => {
+      assert.equal(await whatsapp.enviarLista({ to: '+5511999999999', texto: 'oi', tituloBotao: 'Escolher', opcoes: [{ id: 'a', titulo: 'A' }] }), false);
+    });
+  });
+});
+
 test('listarTemplates: wabaId por argumento vale sem META_WABA_ID no env', async () => {
   await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
     let urlChamada = null;
