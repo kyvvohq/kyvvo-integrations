@@ -296,4 +296,64 @@ async function listarTemplates({ prefixo, wabaId } = {}) {
   }
 }
 
-module.exports = { enviarTemplate, enviarTexto, enviarBotoes, enviarLista, listarTemplates };
+// Exemplos padrão pro `example.body_text_named_params` que a Meta exige ao
+// criar um template com parâmetro nomeado — nomes já usados pelos produtos
+// (ver CRM lib/automacoes.js e Studio server/panel/lib/automacoes.js);
+// "Exemplo" cobre qualquer nome que não esteja no mapa.
+const EXEMPLOS_PARAMETRO = {
+  cliente: 'Maria', etapa: 'Produção', dias_parado: '3', pedido_valor: 'R$ 150,00',
+  salao: 'Studio Kyvvo', servico: 'Corte', profissional: 'Ana', data: '20/10/2026', hora: '14:00',
+};
+
+// Criação de template pra onboarding de WABA (Fase 2, 2026-10-06): até aqui
+// só listarTemplates (ler) e enviarTemplate (mandar um já aprovado) — nada
+// criava um template novo. Usado quando um tenant conecta a própria WABA:
+// cada produto já tem o corpo/nome das mensagens padrão (crm_automacoes.corpo,
+// Studio automacoes.corpo) — isto só submete cada corpo como template de
+// verdade pra Meta aprovar, extraindo os nomes de parâmetro ({{cliente}},
+// {{etapa}}...) do próprio texto em vez de pedir uma lista separada.
+// `categoria`: 'UTILITY'|'MARKETING'|'AUTHENTICATION' (exigência da Meta).
+// Devolve {ok, jaExiste, erro} — nunca lança (um template malformado não
+// pode derrubar o resto do onboarding). `jaExiste:true` conta como sucesso
+// (reconectar uma WABA não deve falhar por um template que já existe de uma
+// tentativa anterior).
+async function criarTemplate({ wabaId, nome, categoria, corpo, idioma = 'pt_BR' }) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const waba = wabaId || process.env.META_WABA_ID;
+
+  if (!token || !waba) {
+    console.log(`[whatsapp] (dev) criarTemplate "${nome}" (${categoria}): ${corpo}`);
+    return { ok: false, jaExiste: false, erro: 'sem credencial' };
+  }
+
+  const nomesParametros = [...new Set((corpo.match(/\{\{\w+\}\}/g) || []).map((m) => m.slice(2, -2)))];
+  const componenteCorpo = {
+    type: 'BODY',
+    text: corpo,
+    ...(nomesParametros.length ? {
+      example: { body_text_named_params: nomesParametros.map((p) => ({ param_name: p, example: EXEMPLOS_PARAMETRO[p] || 'Exemplo' })) },
+    } : {}),
+  };
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${waba}/message_templates`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nome, language: idioma, category: categoria, components: [componenteCorpo] }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const dados = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const mensagem = (dados.error && dados.error.message) || '';
+      const jaExiste = /already exists|duplicate/i.test(mensagem);
+      if (!jaExiste) console.error(`[whatsapp] Meta respondeu ${res.status} ao criar template "${nome}": ${mensagem}`);
+      return { ok: jaExiste, jaExiste, erro: jaExiste ? null : mensagem };
+    }
+    return { ok: true, jaExiste: false, id: dados.id };
+  } catch (err) {
+    console.error(`[whatsapp] Falha ao criar template "${nome}": ${err.message}`);
+    return { ok: false, jaExiste: false, erro: err.message };
+  }
+}
+
+module.exports = { enviarTemplate, enviarTexto, enviarBotoes, enviarLista, listarTemplates, criarTemplate };
