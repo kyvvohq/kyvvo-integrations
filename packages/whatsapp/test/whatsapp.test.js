@@ -316,3 +316,82 @@ test('listarTemplates: resposta de erro da Meta devolve lista vazia, não lança
     });
   });
 });
+
+test('criarTemplate: modo dev sem credencial, não toca a rede e devolve ok:false', async () => {
+  await comEnv({}, async (whatsapp) => {
+    const original = global.fetch;
+    global.fetch = () => { throw new Error('não devia chamar fetch em modo dev'); };
+    try {
+      const r = await whatsapp.criarTemplate({ wabaId: 'w', nome: 'x', categoria: 'UTILITY', corpo: 'Oi {{cliente}}' });
+      assert.deepEqual(r, { ok: false, jaExiste: false, erro: 'sem credencial' });
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('criarTemplate: extrai parâmetros nomeados do próprio corpo e manda no payload', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't' }, async (whatsapp) => {
+    let corpoEnviado = null;
+    let urlChamada = null;
+    const original = global.fetch;
+    global.fetch = async (url, opts) => {
+      urlChamada = String(url);
+      corpoEnviado = JSON.parse(opts.body);
+      return { ok: true, status: 200, json: async () => ({ id: 'tpl-1' }) };
+    };
+    try {
+      const r = await whatsapp.criarTemplate({
+        wabaId: 'waba-1', nome: 'pedido_parado', categoria: 'UTILITY',
+        corpo: 'Oi {{cliente}}, pedido parado em {{etapa}} há {{dias_parado}} dia(s).',
+      });
+      assert.deepEqual(r, { ok: true, jaExiste: false, id: 'tpl-1' });
+      assert.ok(urlChamada.includes('/waba-1/message_templates'), urlChamada);
+      assert.equal(corpoEnviado.name, 'pedido_parado');
+      assert.equal(corpoEnviado.category, 'UTILITY');
+      assert.equal(corpoEnviado.components[0].type, 'BODY');
+      assert.deepEqual(
+        corpoEnviado.components[0].example.body_text_named_params.map((p) => p.param_name),
+        ['cliente', 'etapa', 'dias_parado']
+      );
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+test('criarTemplate: sem parâmetro no corpo não manda "example"', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_WABA_ID: 'w' }, async (whatsapp) => {
+    let corpoEnviado = null;
+    await comFetchMock([{ body: { id: 'tpl-2' } }], async () => {
+      const original = global.fetch;
+      global.fetch = async (url, opts) => { corpoEnviado = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ id: 'tpl-2' }) }; };
+      try {
+        await whatsapp.criarTemplate({ nome: 'sem_param', categoria: 'MARKETING', corpo: 'Mensagem fixa, sem variável.' });
+      } finally {
+        global.fetch = original;
+      }
+    });
+    assert.equal(corpoEnviado.components[0].example, undefined);
+  });
+});
+
+test('criarTemplate: Meta recusando por nome duplicado conta como ok (jaExiste)', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_WABA_ID: 'w' }, async (whatsapp) => {
+    await comFetchMock([{ ok: false, status: 400, body: { error: { message: 'Template name already exists in this language' } } }], async () => {
+      const r = await whatsapp.criarTemplate({ nome: 'pedido_parado', categoria: 'UTILITY', corpo: 'Oi {{cliente}}' });
+      assert.deepEqual(r, { ok: true, jaExiste: true, erro: null });
+    });
+  });
+});
+
+test('criarTemplate: outro erro da Meta devolve ok:false sem lançar', async () => {
+  await comEnv({ META_WHATSAPP_TOKEN: 't', META_WABA_ID: 'w' }, async (whatsapp) => {
+    await comFetchMock([{ ok: false, status: 400, body: { error: { message: 'Invalid parameter' } } }], async () => {
+      const r = await whatsapp.criarTemplate({ nome: 'x', categoria: 'UTILITY', corpo: 'Oi {{cliente}}' });
+      assert.equal(r.ok, false);
+      assert.equal(r.jaExiste, false);
+      assert.equal(r.erro, 'Invalid parameter');
+    });
+  });
+});
