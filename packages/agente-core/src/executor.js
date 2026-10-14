@@ -91,6 +91,14 @@ function criarExecutor({ tabelas, contexto }) {
   }
 
   async function executarTurno({ pool, tenantId, conversa, mensagens }, deps = {}) {
+    // Curto-circuito ANTES de validar qualquer dependência: conta sem
+    // config ou com o agente desligado nunca chega a usar agora/
+    // enviarTexto/ferramentas/etc. — mesma ordem do código original (uma
+    // chamada com deps parciais, só o suficiente pra essa checagem, sempre
+    // foi válida e não devia passar a exigir o resto).
+    const config = await carregarConfig(pool, tenantId);
+    if (!config || config.modo === 'desligado') return { ignorado: true };
+
     const agora = obrigatorio(deps, 'agora');
     const enviarTexto = obrigatorio(deps, 'enviarTexto');
     const log = deps.log ?? console.error; // único default aceitável: cosmético, nunca afeta correção
@@ -105,9 +113,6 @@ function criarExecutor({ tabelas, contexto }) {
     if (!Array.isArray(gatilhosDeps.padroes)) throw new Error('@kyvvohq/agente-core: executarTurno — deps.gatilhos.padroes é obrigatório');
     if (!(gatilhosDeps.comercial instanceof RegExp)) throw new Error('@kyvvohq/agente-core: executarTurno — deps.gatilhos.comercial é obrigatório');
     const extras = gatilhosDeps.extras || [];
-
-    const config = await carregarConfig(pool, tenantId);
-    if (!config || config.modo === 'desligado') return { ignorado: true };
 
     const t0 = Date.now();
     const textos = config.textos || {};
