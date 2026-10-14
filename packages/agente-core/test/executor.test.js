@@ -107,6 +107,19 @@ test('executarTurno: modo desligado -> ignorado, sem chamar o modelo', async () 
   assert.deepEqual(r, { ignorado: true });
 });
 
+test('executarTurno: modo desligado -> curto-circuita ANTES de validar deps (chamada com deps parciais continua válida)', async () => {
+  const agenteCore = criarAgenteCore({ tabelas: TABELAS });
+  const pool = poolPadrao({ config: configBase({ modo: 'desligado' }) });
+  // Só ia/enviarTexto/log, sem ferramentas/blocoDinamico/posfiltro/gatilhos —
+  // modo desligado nunca chega a precisar deles. Reproduz um caso real de
+  // teste (processador chamando executarTurno só com overrides mínimos pra
+  // testar o curto-circuito do modo desligado).
+  const r = await agenteCore.executarTurno({ pool, tenantId: 't1', conversa: { id: 'c1', telefone_e164: '+5511999999999' }, mensagens: [{ id: 1, tipo: 'texto', conteudo: 'oi' }] }, {
+    ia: { criarMensagem: async () => { throw new Error('não devia ter sido chamado'); } },
+  });
+  assert.deepEqual(r, { ignorado: true });
+});
+
 test('executarTurno: feliz, modo rascunho -> gera resposta mas não envia', async () => {
   const agenteCore = criarAgenteCore({ tabelas: TABELAS });
   const pool = poolPadrao();
