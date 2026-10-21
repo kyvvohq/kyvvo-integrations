@@ -1,6 +1,6 @@
 {
   "name": "@kyvvohq/asaas",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cliente Asaas compartilhado pelos produtos Kyvvo (Studio, People).",
   "license": "UNLICENSED",
   "main": "index.js",
