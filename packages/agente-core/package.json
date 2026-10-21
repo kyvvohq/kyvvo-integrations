@@ -1,6 +1,6 @@
 {
   "name": "@kyvvohq/agente-core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Motor compartilhado do agente de atendimento por WhatsApp (contexto -> modelo com ferramentas -> pós-filtro -> rascunho ou envio), extraído do kyvvo-crm.",
   "license": "UNLICENSED",
   "main": "index.js",

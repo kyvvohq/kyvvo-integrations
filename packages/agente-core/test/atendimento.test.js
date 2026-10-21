@@ -57,6 +57,25 @@ test('assumir: pausa o agente, assume o handoff e descarta sugestões pendentes'
   assert.deepEqual(chamadas, ['conversa->humano', 'handoff->assumido', 'sugestoes->descartadas']);
 });
 
+// Bug real (kyvvo-crm, 2026-10-21): conversa_id é permanente por telefone e
+// o limite de turnos (executor.js#maxTurnos) nunca resetava — uma conversa
+// que estourasse o limite uma vez ficava travada em handoff pra sempre,
+// mesmo depois de a equipe devolver ela pro agente. devolverAoAgente agora
+// também zera `turnos_contados_desde`, que o executor usa pra só contar
+// execuções a partir dali.
+test('devolverAoAgente: volta a situação pra bot, resolve o handoff E reseta turnos_contados_desde', async () => {
+  const agenteCore = criarAgenteCore({ tabelas: TABELAS });
+  const chamadas = [];
+  const pool = criarPoolFake([
+    [/select \* from tab_conversas/, () => ({ rows: [{ id: 'conv-1', cliente_id: 'cli-1' }] })],
+    [/update tab_conversas set situacao = 'bot', pausada_ate = null, turnos_contados_desde = now\(\)/, () => { chamadas.push('conversa->bot+reset'); return { rows: [] }; }],
+    [/update tab_handoffs set status = 'resolvido'/, () => { chamadas.push('handoff->resolvido'); return { rows: [] }; }],
+  ]);
+  const r = await agenteCore.atendimento.devolverAoAgente(pool, 't1', 'conv-1');
+  assert.deepEqual(r, { ok: true, situacao: 'bot', clienteId: 'cli-1' });
+  assert.deepEqual(chamadas, ['conversa->bot+reset', 'handoff->resolvido']);
+});
+
 test('enviarSugestao: sugestão já tratada -> ErroAtendimento 409', async () => {
   const agenteCore = criarAgenteCore({ tabelas: TABELAS });
   const pool = criarPoolFake([

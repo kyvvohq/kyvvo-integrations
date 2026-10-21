@@ -133,8 +133,16 @@ function criarExecutor({ tabelas, contexto }) {
       return { execucaoId: await registrarExecucao(pool, { ...base, modelo: null, motivoBloqueio: 'rate_limit', latenciaMs: Date.now() - t0 }), limite: 'mensagens' };
     }
     const maxTurnos = Number(limites.max_turnos) || 20;
+    // Conta só a partir da última devolução ao agente (`turnos_contados_desde`,
+    // atualizado por atendimento.devolverAoAgente) — sem isso, conversa_id é
+    // permanente por telefone e o contador nunca zera, travando o contato
+    // pra sempre depois de max_turnos trocas acumuladas na vida inteira dele
+    // (bug real encontrado em produção, kyvvo-crm). `conversa.criado_em` cobre
+    // linhas antigas sem a coluna ainda preenchida.
     const { rows: [{ n: turnos }] } = await pool.query(
-      `select count(*)::int as n from ${tabelas.execucoes} where tenant_id = $1 and conversa_id = $2`, [tenantId, conversa.id]);
+      `select count(*)::int as n from ${tabelas.execucoes}
+        where tenant_id = $1 and conversa_id = $2 and criado_em >= $3`,
+      [tenantId, conversa.id, conversa.turnos_contados_desde || conversa.criado_em]);
     if (turnos >= maxTurnos) {
       await encaminhar('limite_turnos', `A conversa atingiu o limite de ${maxTurnos} turnos do agente.`);
       return { execucaoId: await registrarExecucao(pool, { ...base, motivoBloqueio: 'limite_turnos', latenciaMs: Date.now() - t0 }), limite: 'turnos' };

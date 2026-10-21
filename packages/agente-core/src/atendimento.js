@@ -175,7 +175,10 @@ function criarAtendimento({ tabelas }) {
 
   async function devolverAoAgente(pool, tenantId, conversaId) {
     const conversa = await conversaDoTenant(pool, tenantId, conversaId);
-    await pool.query(`update ${tabelas.conversas} set situacao = 'bot', pausada_ate = null, atualizado_em = now() where tenant_id = $1 and id = $2`, [tenantId, conversaId]);
+    // Zera a contagem de limite de turnos (ver executor.js#maxTurnos) — sem
+    // isso, uma conversa que já passou do limite uma vez fica travada em
+    // handoff pra sempre, mesmo depois de a equipe devolver pro agente.
+    await pool.query(`update ${tabelas.conversas} set situacao = 'bot', pausada_ate = null, turnos_contados_desde = now(), atualizado_em = now() where tenant_id = $1 and id = $2`, [tenantId, conversaId]);
     await pool.query(`update ${tabelas.handoffs} set status = 'resolvido', atualizado_em = now() where tenant_id = $1 and conversa_id = $2 and status in ('aberto', 'assumido')`, [tenantId, conversaId]);
     return { ok: true, situacao: 'bot', clienteId: conversa.cliente_id };
   }

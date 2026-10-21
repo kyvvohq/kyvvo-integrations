@@ -205,3 +205,33 @@ test('executarTurno: gatilhos.extras chama a ferramenta certa quando extrair() a
   await agenteCore.executarTurno({ pool, tenantId: 't1', conversa: { id: 'c1', telefone_e164: '+5511999999999' }, mensagens: [{ id: 1, tipo: 'texto', conteudo: 'meu pedido é ID123456' }] }, deps);
   assert.deepEqual(chamadas, [{ nome: 'registrar_id_shopee', input: { id_pedido: 'ID123456' } }]);
 });
+
+// Bug real (kyvvo-crm, 2026-10-21): conversa_id é permanente por telefone,
+// então o limite de turnos não pode contar a vida inteira da conversa — só
+// desde a última devolução ao agente (ver atendimento.js#devolverAoAgente,
+// que seta turnos_contados_desde = now()). Sem isso uma conversa que
+// estourasse max_turnos uma vez ficava travada em handoff pra sempre.
+test('executarTurno: limite de turnos conta só a partir de turnos_contados_desde, não a vida inteira da conversa', async () => {
+  const agenteCore = criarAgenteCore({ tabelas: TABELAS });
+  let paramsCapturados = null;
+  const pool = criarPoolFake([
+    [/select \* from tab_config/, () => ({ rows: [configBase()] })],
+    [/select count\(\*\)::int as n from tab_mensagens.*direcao = 'recebida'/s, () => ({ rows: [{ n: 0 }] })],
+    [/select count\(\*\)::int as n from tab_execucoes/, (sql, params) => { paramsCapturados = params; return { rows: [{ n: 0 }] }; }],
+    [/select tipo, conteudo_md from tab_conhecimento/, () => ({ rows: [] })],
+    [/select direcao, tipo, conteudo, anexo_id from tab_mensagens/, () => ({ rows: [{ direcao: 'recebida', tipo: 'texto', conteudo: 'oi', anexo_id: null }] })],
+    [/select 1 from tab_handoffs/, () => ({ rows: [] })],
+    [/insert into tab_execucoes/, () => ({ rows: [{ id: 'exec-1' }] })],
+    [/insert into tab_mensagens/, () => ({ rows: [{ id: 'msg-1' }] })],
+    [/select phone_number_id from tab_numeros/, () => ({ rows: [{ phone_number_id: '123' }] })],
+  ]);
+  const deps = depsBase();
+
+  const comColunaPreenchida = { id: 'c1', telefone_e164: '+5511999999999', criado_em: '2026-01-01T00:00:00Z', turnos_contados_desde: '2026-01-14T10:00:00Z' };
+  await agenteCore.executarTurno({ pool, tenantId: 't1', conversa: comColunaPreenchida, mensagens: [{ id: 1, tipo: 'texto', conteudo: 'oi' }] }, deps);
+  assert.equal(paramsCapturados[2], '2026-01-14T10:00:00Z', 'devia usar turnos_contados_desde quando presente');
+
+  const semColunaAinda = { id: 'c2', telefone_e164: '+5511999999999', criado_em: '2026-01-01T00:00:00Z' };
+  await agenteCore.executarTurno({ pool, tenantId: 't1', conversa: semColunaAinda, mensagens: [{ id: 1, tipo: 'texto', conteudo: 'oi' }] }, deps);
+  assert.equal(paramsCapturados[2], '2026-01-01T00:00:00Z', 'sem a coluna ainda preenchida, cai pro criado_em da conversa');
+});
