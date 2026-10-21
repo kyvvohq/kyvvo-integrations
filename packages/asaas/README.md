@@ -21,6 +21,11 @@ await asaas.atualizarCustomer({ customerId, nome, whatsapp });
 await asaas.buscarSubscription(subscriptionId);
 await asaas.listarUltimasCobrancas(subscriptionId, limite);
 
+// Cobrança avulsa (sem recorrência) — ex.: compra de créditos do CRM.
+await asaas.criarCobranca({ customerId, billingType, valor, descricao, dueDate, creditCardToken, tenantId, externalReference });
+await asaas.buscarCobranca(paymentId);
+await asaas.buscarPixQrCode(paymentId);
+
 asaas.EVENTO_STATUS;              // mapa congelado: evento do webhook -> status do tenant
 ```
 

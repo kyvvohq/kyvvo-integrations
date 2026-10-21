@@ -40,6 +40,18 @@ test('modo dev: ids fake determinísticos, sem tocar a rede', async () => {
   });
 });
 
+test('modo dev: cobrança avulsa (criarCobranca/buscarCobranca/buscarPixQrCode)', async () => {
+  await comEnv({}, async (asaas) => {
+    const pagamento = await asaas.criarCobranca({ tenantId: 't1', billingType: 'PIX', valor: 60 });
+    assert.match(pagamento.id, /^pay_dev_t1_/);
+    assert.equal(pagamento.status, 'CONFIRMED');
+    assert.deepEqual(await asaas.buscarCobranca(pagamento.id), { id: pagamento.id, status: 'CONFIRMED' });
+    const qr = await asaas.buscarPixQrCode(pagamento.id);
+    assert.equal(qr.success, true);
+    assert.equal(qr.encodedImage, null);
+  });
+});
+
 test('criarOuRecuperarCustomer curto-circuita quando já há asaasCustomerId', async () => {
   await comEnv({ ASAAS_API_KEY_SANDBOX: 'k' }, async (asaas) => {
     assert.deepEqual(await asaas.criarOuRecuperarCustomer({ tenantId: 't1', asaasCustomerId: 'cus_123' }), { id: 'cus_123' });

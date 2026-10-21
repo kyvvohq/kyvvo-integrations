@@ -192,6 +192,47 @@ async function listarUltimasCobrancas(subscriptionId, limite = 5) {
   return dados.data || [];
 }
 
+// Cobrança avulsa (Pix ou cartão), sem recorrência — POST /payments, diferente
+// de criarSubscription. Pro cartão, a Asaas processa e já devolve o status
+// (normalmente CONFIRMED) na resposta; pro Pix, a cobrança nasce PENDING e só
+// confirma depois, via webhook (PAYMENT_CONFIRMED/PAYMENT_RECEIVED). Em modo
+// dev, devolve um id fake com status CONFIRMED (simula o caminho feliz pra
+// quem está testando o fluxo sem conta Asaas real).
+async function criarCobranca({ customerId, billingType, valor, descricao, dueDate, creditCardToken, tenantId, externalReference }) {
+  if (modoDev()) {
+    const idFake = `pay_dev_${tenantId}_${Date.now()}`;
+    console.log(`[asaas] (dev) cobrança avulsa ${billingType} para tenant ${tenantId} — id: ${idFake}, valor: ${valor}`);
+    return { id: idFake, status: 'CONFIRMED' };
+  }
+
+  return chamar('POST', '/payments', {
+    customer: customerId,
+    billingType,
+    value: valor,
+    dueDate,
+    description: descricao,
+    creditCardToken: billingType === 'CREDIT_CARD' ? creditCardToken : undefined,
+    externalReference,
+  });
+}
+
+// Status atual de uma cobrança avulsa (poll de apoio — a confirmação de
+// verdade chega pelo webhook). Em modo dev, devolve CONFIRMED (id fake nunca
+// existiu na Asaas de verdade).
+async function buscarCobranca(paymentId) {
+  if (modoDev() || !paymentId) return { id: paymentId, status: 'CONFIRMED' };
+  return chamar('GET', `/payments/${paymentId}`);
+}
+
+// QR code Pix (copia-e-cola + imagem) de uma cobrança avulsa PIX. Em modo dev,
+// devolve um payload fake só pra não quebrar a tela.
+async function buscarPixQrCode(paymentId) {
+  if (modoDev() || !paymentId) {
+    return { success: true, encodedImage: null, payload: '00020126 (dev) pix fake — sem conta Asaas real', expirationDate: null };
+  }
+  return chamar('GET', `/payments/${paymentId}/pixQrCode`);
+}
+
 // Mapa evento do webhook Asaas -> status do tenant. Idêntico nos dois produtos
 // hoje. SUBSCRIPTION_CANCELLED não existe na API da Asaas (achado 2026-08-31
 // consultando GET /v3/webhooks) — o evento real do DELETE /subscriptions/:id é
@@ -220,5 +261,8 @@ module.exports = {
   atualizarCustomer,
   buscarSubscription,
   listarUltimasCobrancas,
+  criarCobranca,
+  buscarCobranca,
+  buscarPixQrCode,
   EVENTO_STATUS,
 };
