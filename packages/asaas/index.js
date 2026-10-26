@@ -198,7 +198,15 @@ async function listarUltimasCobrancas(subscriptionId, limite = 5) {
 // confirma depois, via webhook (PAYMENT_CONFIRMED/PAYMENT_RECEIVED). Em modo
 // dev, devolve um id fake com status CONFIRMED (simula o caminho feliz pra
 // quem está testando o fluxo sem conta Asaas real).
-async function criarCobranca({ customerId, billingType, valor, descricao, dueDate, creditCardToken, tenantId, externalReference }) {
+//
+// `remoteIp` (achado 2026-10-26, cobrança de créditos do CRM negada com 403
+// "sem permissão... fale com seu gerente de contas") — a doc da Asaas lista
+// `remoteIp` como campo obrigatório de POST /payments ("IP de quem está
+// pagando"), mas ele só estava sendo mandado pra /creditCard/tokenize, nunca
+// pra /payments em si. Sem ele, a Asaas rejeita cobrança no cartão (tokenizado)
+// com essa mensagem genérica de permissão/antifraude, em vez de um 400 claro
+// de campo faltando — Pix não passa por isso (não usa remoteIp).
+async function criarCobranca({ customerId, billingType, valor, descricao, dueDate, creditCardToken, tenantId, externalReference, remoteIp }) {
   if (modoDev()) {
     const idFake = `pay_dev_${tenantId}_${Date.now()}`;
     console.log(`[asaas] (dev) cobrança avulsa ${billingType} para tenant ${tenantId} — id: ${idFake}, valor: ${valor}`);
@@ -212,6 +220,7 @@ async function criarCobranca({ customerId, billingType, valor, descricao, dueDat
     dueDate,
     description: descricao,
     creditCardToken: billingType === 'CREDIT_CARD' ? creditCardToken : undefined,
+    remoteIp: billingType === 'CREDIT_CARD' ? remoteIp : undefined,
     externalReference,
   });
 }

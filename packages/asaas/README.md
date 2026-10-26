@@ -22,7 +22,7 @@ await asaas.buscarSubscription(subscriptionId);
 await asaas.listarUltimasCobrancas(subscriptionId, limite);
 
 // Cobrança avulsa (sem recorrência) — ex.: compra de créditos do CRM.
-await asaas.criarCobranca({ customerId, billingType, valor, descricao, dueDate, creditCardToken, tenantId, externalReference });
+await asaas.criarCobranca({ customerId, billingType, valor, descricao, dueDate, creditCardToken, tenantId, externalReference, remoteIp });
 await asaas.buscarCobranca(paymentId);
 await asaas.buscarPixQrCode(paymentId);
 
