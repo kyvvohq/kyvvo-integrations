@@ -76,6 +76,20 @@ test('devolverAoAgente: volta a situação pra bot, resolve o handoff E reseta t
   assert.deepEqual(chamadas, ['conversa->bot+reset', 'handoff->resolvido']);
 });
 
+test('encerrar: marca situação como encerrada, resolve handoff, descarta sugestões E reseta turnos_contados_desde', async () => {
+  const agenteCore = criarAgenteCore({ tabelas: TABELAS });
+  const chamadas = [];
+  const pool = criarPoolFake([
+    [/select \* from tab_conversas/, () => ({ rows: [{ id: 'conv-1', cliente_id: 'cli-1' }] })],
+    [/update tab_conversas set situacao = 'encerrada', turnos_contados_desde = now\(\)/, () => { chamadas.push('conversa->encerrada+reset'); return { rows: [] }; }],
+    [/update tab_handoffs set status = 'resolvido'/, () => { chamadas.push('handoff->resolvido'); return { rows: [] }; }],
+    [/update tab_execucoes set decisao = 'descartada'/, () => { chamadas.push('sugestoes->descartadas'); return { rows: [] }; }],
+  ]);
+  const r = await agenteCore.atendimento.encerrar(pool, 't1', 'conv-1');
+  assert.deepEqual(r, { ok: true, situacao: 'encerrada', clienteId: 'cli-1' });
+  assert.deepEqual(chamadas, ['conversa->encerrada+reset', 'handoff->resolvido', 'sugestoes->descartadas']);
+});
+
 test('enviarSugestao: sugestão já tratada -> ErroAtendimento 409', async () => {
   const agenteCore = criarAgenteCore({ tabelas: TABELAS });
   const pool = criarPoolFake([

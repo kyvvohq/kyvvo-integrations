@@ -185,7 +185,13 @@ function criarAtendimento({ tabelas }) {
 
   async function encerrar(pool, tenantId, conversaId) {
     const conversa = await conversaDoTenant(pool, tenantId, conversaId);
-    await pool.query(`update ${tabelas.conversas} set situacao = 'encerrada', atualizado_em = now() where tenant_id = $1 and id = $2`, [tenantId, conversaId]);
+    // Também zera `turnos_contados_desde` (ver executor.js#maxTurnos e
+    // devolverAoAgente acima): se a operadora encerra sem antes assumir, a
+    // conversa pode reabrir mais tarde com uma nova mensagem da cliente
+    // (upsertConversa em recebimento.js vira situacao de 'encerrada' pra
+    // 'bot' automaticamente) — sem este reset ela reabriria carregando a
+    // contagem de turnos de antes do encerramento.
+    await pool.query(`update ${tabelas.conversas} set situacao = 'encerrada', turnos_contados_desde = now(), atualizado_em = now() where tenant_id = $1 and id = $2`, [tenantId, conversaId]);
     await pool.query(`update ${tabelas.handoffs} set status = 'resolvido', atualizado_em = now() where tenant_id = $1 and conversa_id = $2 and status in ('aberto', 'assumido')`, [tenantId, conversaId]);
     await descartarSugestoesPendentes(pool, tenantId, conversaId);
     return { ok: true, situacao: 'encerrada', clienteId: conversa.cliente_id };
