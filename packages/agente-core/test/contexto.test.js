@@ -45,6 +45,35 @@ test('carregarHistorico: alterna user/assistant e junta mensagens consecutivas d
   ]);
 });
 
+test('carregarHistorico: com `desde`, filtra mensagens de antes do encerramento', async () => {
+  const agenteCore = criarAgenteCore({ tabelas: TABELAS });
+  let paramsRecebidos;
+  const pool = criarPoolFake([
+    [/select direcao, tipo, conteudo, anexo_id from tab_mensagens/, (sql, params) => {
+      paramsRecebidos = params;
+      // o pool fake não filtra de verdade — só confere que `desde` chegou como 4º parâmetro
+      return { rows: [{ direcao: 'recebida', tipo: 'texto', conteudo: 'depois do encerramento', anexo_id: null }] };
+    }],
+  ]);
+  const desde = new Date('2026-10-29T21:00:00Z');
+  const r = await agenteCore.carregarHistorico(pool, 't1', '+5511999999999', { desde });
+  assert.equal(paramsRecebidos[3], desde);
+  assert.deepEqual(r, [{ role: 'user', content: 'depois do encerramento' }]);
+});
+
+test('carregarHistorico: sem `desde`, manda null (sem corte) — conversa nunca encerrada', async () => {
+  const agenteCore = criarAgenteCore({ tabelas: TABELAS });
+  let paramsRecebidos;
+  const pool = criarPoolFake([
+    [/select direcao, tipo, conteudo, anexo_id from tab_mensagens/, (sql, params) => {
+      paramsRecebidos = params;
+      return { rows: [] };
+    }],
+  ]);
+  await agenteCore.carregarHistorico(pool, 't1', '+5511999999999');
+  assert.equal(paramsRecebidos[3], null);
+});
+
 test('montarSystem: cache_control no bloco certo conforme tem base ou não', () => {
   const agenteCore = criarAgenteCore({ tabelas: TABELAS });
   const comBase = agenteCore.montarSystem({ sistema: 'S', base: 'B', dinamico: 'D' });

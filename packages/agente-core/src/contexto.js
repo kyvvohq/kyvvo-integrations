@@ -42,11 +42,15 @@ function criarContexto({ tabelas }) {
   }
 
   // Histórico -> messages da API: user/assistant alternando, começando por user.
-  async function carregarHistorico(pool, tenantId, telefone, { historicoMax = HISTORICO_MAX_PADRAO, rotuloAnexo } = {}) {
+  // `desde`: corte de encerramento (conversa.encerrada_em) — mensagens de
+  // ANTES de um encerramento ficam fora do que o modelo enxerga quando a
+  // conversa reabre. `null`/`undefined` = sem corte (conversa nunca encerrada).
+  async function carregarHistorico(pool, tenantId, telefone, { historicoMax = HISTORICO_MAX_PADRAO, rotuloAnexo, desde = null } = {}) {
     const { rows } = await pool.query(
       `select direcao, tipo, conteudo, anexo_id from ${tabelas.mensagens}
         where tenant_id = $1 and telefone_e164 = $2 and direcao in ('recebida', 'enviada')
-        order by criado_em desc, id desc limit $3`, [tenantId, telefone, historicoMax]);
+          and ($4::timestamptz is null or criado_em > $4::timestamptz)
+        order by criado_em desc, id desc limit $3`, [tenantId, telefone, historicoMax, desde]);
     const out = [];
     for (const m of rows.reverse()) {
       const role = m.direcao === 'recebida' ? 'user' : 'assistant';

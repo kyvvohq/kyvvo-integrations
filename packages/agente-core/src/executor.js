@@ -175,7 +175,7 @@ function criarExecutor({ tabelas, contexto }) {
     const conhecimento = await carregarConhecimento(pool, tenantId);
     const dinamico = await blocoDinamico(pool, { tenantId, conversa, config, agora: agora() });
     const system = montarSystem({ sistema: conhecimento.sistema, base: conhecimento.base, dinamico });
-    const historico = await carregarHistorico(pool, tenantId, conversa.telefone_e164, deps.contexto || {});
+    const historico = await carregarHistorico(pool, tenantId, conversa.telefone_e164, { ...(deps.contexto || {}), desde: conversa.encerrada_em || null });
     if (!historico.length) throw new Error('sem mensagem da cliente para responder');
 
     const chamadas = [];

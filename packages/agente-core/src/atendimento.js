@@ -190,8 +190,14 @@ function criarAtendimento({ tabelas }) {
     // conversa pode reabrir mais tarde com uma nova mensagem da cliente
     // (upsertConversa em recebimento.js vira situacao de 'encerrada' pra
     // 'bot' automaticamente) — sem este reset ela reabriria carregando a
-    // contagem de turnos de antes do encerramento.
-    await pool.query(`update ${tabelas.conversas} set situacao = 'encerrada', turnos_contados_desde = now(), atualizado_em = now() where tenant_id = $1 and id = $2`, [tenantId, conversaId]);
+    // contagem de turnos de antes do encerramento. `encerrada_em` é o corte
+    // de histórico (ver contexto.js#carregarHistorico/executor.js): quando
+    // reabre, o modelo não vê nada de antes deste encerramento — sem isso,
+    // um atendimento já resolvido pela equipe volta a pesar no contexto e
+    // pode levar o agente a escalar de novo na hora, repetindo pra cliente a
+    // mesma mensagem de encaminhamento que ela acabou de receber (achado em
+    // produção, Basic 3D Print, 2026-10-29).
+    await pool.query(`update ${tabelas.conversas} set situacao = 'encerrada', turnos_contados_desde = now(), encerrada_em = now(), atualizado_em = now() where tenant_id = $1 and id = $2`, [tenantId, conversaId]);
     await pool.query(`update ${tabelas.handoffs} set status = 'resolvido', atualizado_em = now() where tenant_id = $1 and conversa_id = $2 and status in ('aberto', 'assumido')`, [tenantId, conversaId]);
     await descartarSugestoesPendentes(pool, tenantId, conversaId);
     return { ok: true, situacao: 'encerrada', clienteId: conversa.cliente_id };
